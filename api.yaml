@@ -1,0 +1,687 @@
+openapi: 3.1.0
+info:
+  title: Live Ambulance Tracker API
+  version: 1.0.0
+  description: REST API for authentication, user config, phone management, and ambulance location ingestion. WebSocket used for tracking and live updates.
+
+servers:
+  - url: https://example.com/api/v1
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    LoginRequest:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+      required: [username, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        user_id: { type: string }
+        requires_password_reset: { type: boolean }
+      required: [user_id, requires_password_reset]
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        current_password: { type: string }
+        new_password: { type: string }
+      required: [current_password, new_password]
+
+    CreateUserRequest:
+      type: object
+      properties:
+        username: { type: string }
+        role:
+          type: string
+          enum: [admin, user]
+      required: [username, role]
+
+    CreateUserResponse:
+      type: object
+      properties:
+        user_id: { type: string }
+        temporary_password: { type: string }
+      required: [user_id, temporary_password]
+
+    ResetPasswordResponse:
+      type: object
+      properties:
+        temporary_password: { type: string }
+      required: [temporary_password]
+
+    PhoneNumber:
+      type: object
+      properties:
+        phone_id: { type: string }
+        label: { type: string }
+        number: { type: string }
+      required: [phone_id, label, number]
+
+    PhoneCreateRequest:
+      type: object
+      properties:
+        label: { type: string }
+        number: { type: string }
+      required: [label, number]
+
+    Location:
+      type: object
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+      required: [lat, lng]
+
+    AmbulanceLocationNewRequest:
+      type: object
+      properties:
+        ambulance_name: { type: string }
+        timestamp: { type: string, format: date-time }
+        location: { $ref: '#/components/schemas/Location' }
+      required: [timestamp, location, ambulance_name]
+
+    AmbulanceLocationUpdateRequest:
+      type: object
+      properties:
+        ambulance_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        location: { $ref: '#/components/schemas/Location' }
+      required: [ timestamp, location, ambulance_id ]
+
+    AmbulanceUserTracking:
+      type: object
+      properties:
+        ambulance_id: { type: string }
+        ambulance_name: { type: string }
+        user_description: { type: string }
+        urgency: { type: string }
+        notify_phones:
+          type: array
+          items:
+            type: object
+            properties:
+              number: string
+              eta_threshold_minutes: integer
+            required: [number, eta_threshold_minutes]
+        current_eta_minutes: { type: integer, nullable: true }
+        last_update_timestamp: { type: string, format: date-time, nullable: true }
+        last_location:
+          oneOf:
+            - $ref: '#/components/schemas/Location'
+            - type: 'null'
+      required:
+        - ambulance_id
+        - ambulance_name
+        - user_description
+        - urgency
+        - notify_phones
+
+    UserSettings:
+      type: object
+      properties:
+        hospital_location: { $ref: '#/components/schemas/Location' }
+        default_eta_alert_ms: { type: number }
+
+
+paths:
+
+  /auth/login:
+    post:
+      summary: Log in a user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400':
+          description: Bad request
+        '403':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      summary: Log out the current user
+      tags: [Auth]
+      responses:
+        '204':
+          description: Logged out
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/change-password:
+    post:
+      summary: Change current user's password
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Wrong password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/users:
+    post:
+      summary: Create a new user (admin only)
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateUserResponse' }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/users/{user_id}/reset-password:
+    post:
+      summary: Reset a user's password (admin only)
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Password reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResetPasswordResponse' }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Cannot find the user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/users/{user_id}:
+    delete:
+      summary: Delete/deactivate user
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: User deleted
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Cannot find the user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/me/phones:
+    get:
+      summary: Get user's phone numbers
+      tags: [User]
+      responses:
+        '200':
+          description: List of phone numbers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones:
+                    type: array
+                    items: { $ref: '#/components/schemas/PhoneNumber' }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      summary: Add a new phone number
+      tags: [User]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PhoneCreateRequest' }
+      responses:
+        '201':
+          description: Phone created, returning list of all phones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones:
+                    type: array
+                    items: { $ref: '#/components/schemas/PhoneNumber' }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/me/phones/{phone_id}:
+    delete:
+      summary: Delete a phone number
+      tags: [User]
+      parameters:
+        - in: path
+          name: phone_id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Phone removed
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Cannot find the phone. Will also return this status if trying to delete a phone not owned by user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /users/me/settings:
+    get:
+      summary: get all settings
+      tags: [User]
+      responses:
+        '200':
+          description: Settings list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSettings' }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      summary: update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserSettings' }
+      responses:
+        '204':
+          description: Successful
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /ambulances/location:
+    patch:
+      summary: Update latest ambulance location (API key required).
+      tags: [Ambulance]
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AmbulanceLocationUpdateRequest' }
+      responses:
+        '204':
+          description: Location updated to existing record
+        '400':
+          description: Bad request
+        '401':
+          description: Invalid API key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Cannot find the ambulance id
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      summary: Create a new ambulance entry, returning its id.
+      tags: [ Ambulance ]
+      security:
+        - apiKeyAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AmbulanceLocationNewRequest' }
+      responses:
+        '201':
+          description: New ambulance created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ambulance_id: { type: string }
+        '400':
+          description: Bad request
+        '401':
+          description: Invalid API key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /track:
+    get:
+      summary: Get the full overview of the user's tracking session
+      tags: [ User ]
+      responses:
+        '200':
+          description: List of ambulances
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracked_ambulances:
+                    type: array
+                    items: { $ref: '#/components/schemas/AmbulanceUserTracking' }
+                  available_ambulances:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ambulance_name: string
+                        ambulance_id: string
+                      required: [ambulance_name, ambulance_id]
+                  eta_alert_ambulance_ids:
+                    type: array
+                    items: { type: string }
+                  hospital_location: { $ref: '#/components/schemas/Location' }
+                required: [tracked_ambulances, available_ambulances, eta_alert_ambulance_ids, hospital_location]
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Hospital location must be specified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    /track/{ambulance_id}:
+      post:
+        summary: Begin tracking a new ambulance
+        tags: [ User ]
+        parameters:
+          - in: path
+            name: ambulance_id
+            required: true
+            schema: { type: string }
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ambulance_name: { type: string }
+                  user_description: { type: string }
+                  urgency: { type: string }
+                  notify_phones:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        number: string
+                        eta_threshold_minutes: integer
+                      required: [ number, eta_threshold_minutes ]
+                  self_eta_alert_minutes:
+                    type: integer
+                required: [ambulance_name, user_description, urgency, notify_phones]
+        responses:
+          '204':
+            description: Now tracking the ambulance
+          '401':
+            description: Unauthenticated
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '404':
+            description: Cannot find the ambulance id
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '409':
+            description: Hospital location must be specified
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+      patch:
+        summary: dismiss an eta alert for the ambulance
+        parameters:
+          - in: path
+            name: ambulance_id
+            required: true
+            schema: { type: string }
+        responses:
+          '204':
+            description: Self ETA alert will no longer be shown
+          '401':
+            description: Unauthenticated
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '404':
+            description: Cannot find the ambulance id
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+      delete:
+        summary: Stop tracking an ambulance
+        tags: [ User ]
+        parameters:
+          - in: path
+            name: ambulance_id
+            required: true
+            schema: { type: string }
+        responses:
+          '204':
+            description: No longer tracking the ambulance, including deletion of ETA alerts
+          '401':
+            description: Unauthenticated
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '404':
+            description: Cannot find the ambulance id
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema: { $ref: '#/components/schemas/ErrorResponse' }
