@@ -4,10 +4,10 @@ Using PostGis extension for postgresql
 
 ### Accounts
 
-| user_id              | username | password_hash | password_salt | role                        | owner_id                                                               | password_reset_needed | hospital             | pref_eta       |
-|----------------------|----------|---------------|---------------|-----------------------------|------------------------------------------------------------------------|-----------------------|----------------------|----------------|
-| uuid                 | char(16) | bytes(32)     | bytes(16)     | enum (admin/user/siteadmin) | uuid                                                                   | bool                  | WGS84 long/lat, NULL | time           |
-| PK default random v4 | Unique   |               |               |                             | FK to Accounts user_id, owner_id must refer to role admin or siteadmin | default true          |                      | default 15 min |
+| user_id              | username | password_hash | password_salt | role                         | owner_id                                                                | password_reset_needed | hospital             | pref_eta       |
+|----------------------|----------|---------------|---------------|------------------------------|-------------------------------------------------------------------------|-----------------------|----------------------|----------------|
+| uuid                 | char(16) | bytes(32)     | bytes(16)     | enum (admin/user/site_admin) | uuid                                                                    | bool                  | WGS84 long/lat, NULL | time           |
+| PK default random v4 | Unique   |               |               |                              | FK to Accounts user_id, owner_id must refer to role admin or site_admin | default true          |                      | default 15 min |
 
 - index on username
 - index on owner_id

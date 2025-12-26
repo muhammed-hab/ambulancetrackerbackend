@@ -10,6 +10,7 @@
 -- DROP TABLE IF EXISTS sessions CASCADE;
 -- DROP TABLE IF EXISTS archive_ambulance_locations CASCADE;
 -- DROP TABLE IF EXISTS archive_etas CASCADE;
+-- DROP TYPE IF EXISTS account_role;
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
@@ -19,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_role') THEN
-CREATE TYPE account_role AS ENUM ('admin','user','siteadmin');
+CREATE TYPE account_role AS ENUM ('admin','user','site_admin');
 END IF;
 END;
 $$;
