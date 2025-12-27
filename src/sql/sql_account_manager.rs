@@ -203,6 +203,12 @@ impl SqlAccountManager {
 
 		Ok((AccountId::new(account_id), password))
 	}
+	
+	/// Creates a new AmbulanceTracker using the specified connection as the backend.
+	/// It is expected that the [migrations/1_archive.sql] file has been executed already.
+	pub fn new(pool: PgPool) -> Self {
+		Self(pool)
+	}
 }
 
 #[cfg(test)]
@@ -211,7 +217,7 @@ mod tests {
 	use sqlx::PgPool;
 
 	fn mgr(pool: PgPool) -> SqlAccountManager {
-		SqlAccountManager(pool)
+		SqlAccountManager::new(pool)
 	}
 
 	#[sqlx::test]
