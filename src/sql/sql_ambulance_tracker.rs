@@ -79,7 +79,7 @@ impl AmbulanceTracker for SQLAmbulanceTracker {
 
 impl SQLAmbulanceTracker {
 	/// Creates a new AmbulanceTracker using the specified connection as the backend.
-	/// It is expected that the [migrations/1_archive.sql] file has been executed already.
+	/// It is expected that the migrations file has been executed already.
 	pub fn new(pool: PgPool) -> Self {
 		Self(pool)
 	}

@@ -1,16 +1,16 @@
 -- Migration: Create schema for ambulance tracking app
 
--- DROP TABLE IF EXISTS accounts CASCADE;
--- DROP TABLE IF EXISTS ambulance_locations CASCADE;
--- DROP TABLE IF EXISTS ambulances CASCADE;
--- DROP TABLE IF EXISTS eta_notifications CASCADE;
--- DROP TABLE IF EXISTS etas CASCADE;
--- DROP TABLE IF EXISTS live_tracking_sessions CASCADE;
--- DROP TABLE IF EXISTS phone_numbers CASCADE;
--- DROP TABLE IF EXISTS sessions CASCADE;
--- DROP TABLE IF EXISTS archive_ambulance_locations CASCADE;
--- DROP TABLE IF EXISTS archive_etas CASCADE;
--- DROP TYPE IF EXISTS account_role;
+DROP TABLE IF EXISTS accounts CASCADE;
+DROP TABLE IF EXISTS ambulance_locations CASCADE;
+DROP TABLE IF EXISTS ambulances CASCADE;
+DROP TABLE IF EXISTS eta_notifications CASCADE;
+DROP TABLE IF EXISTS etas CASCADE;
+DROP TABLE IF EXISTS live_tracking_sessions CASCADE;
+DROP TABLE IF EXISTS phone_numbers CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS archive_ambulance_locations CASCADE;
+DROP TABLE IF EXISTS archive_etas CASCADE;
+DROP TYPE IF EXISTS account_role;
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
@@ -41,7 +41,7 @@ CREATE TABLE accounts (
     -- pretty accurate. however, if distances were to become large, distance calculations and similar would be off as
     -- geography is a true sphenoid where geometry assumes a plane
                           hospital GEOMETRY(POINT, 4326),
-                          pref_eta INTERVAL NOT NULL DEFAULT INTERVAL '15 minutes'
+                          pref_eta INTERVAL NOT NULL DEFAULT INTERVAL '15 minutes' CHECK (pref_eta < '6 hours')
 );
 CREATE INDEX idx_accounts_username ON accounts(username);
 CREATE INDEX idx_accounts_owner_id ON accounts(owner_id);
@@ -89,7 +89,7 @@ CREATE TABLE live_tracking_sessions (
                                         arrived_at TIMESTAMPTZ,
                                         eta TIMESTAMPTZ,
                                         eta_last_calculated TIMESTAMPTZ,
-                                        notify_self_at INTERVAL
+                                        notify_self_at INTERVAL CHECK (notify_self_at < '6 hours')
 );
 CREATE UNIQUE INDEX idx_live_tracking_user ON live_tracking_sessions(user_id, ambulance_id);
 CREATE INDEX idx_live_tracking_arrived ON live_tracking_sessions(arrived_at);
@@ -100,7 +100,7 @@ CREATE INDEX idx_live_tracking_eta_updates ON live_tracking_sessions(ambulance_i
 -- ----------------------------------------
 CREATE TABLE eta_notifications (
                                    tracking_id UUID NOT NULL REFERENCES live_tracking_sessions(tracking_id) ON DELETE CASCADE,
-                                   notify_at_eta INTERVAL,
+                                   notify_at_eta INTERVAL NOT NULL CHECK (notify_at_eta < '6 hours'),
                                    fulfilled BOOLEAN NOT NULL DEFAULT FALSE,
                                    phone_id UUID REFERENCES phone_numbers(phone_id) ON DELETE CASCADE
 );
@@ -108,3 +108,19 @@ CREATE INDEX idx_eta_notifications_tracking ON eta_notifications(tracking_id);
 CREATE INDEX idx_eta_notifications_track_fulfilled_eta
     ON eta_notifications(tracking_id, fulfilled, notify_at_eta);
 
+-- ----------------------------------------
+-- ARCHIVE: Ambulance locations
+-- ----------------------------------------
+CREATE TABLE archive_ambulance_locations (
+                                             ambulance_id UUID NOT NULL,
+                                             ambulance_name VARCHAR(255),
+                                             location GEOMETRY(POINT, 4326) NOT NULL,
+                                             time TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE archive_etas (
+                              ambulance_id UUID NOT NULL,
+                              current_location GEOMETRY(POINT, 4326) NOT NULL,
+                              destination GEOMETRY(POINT, 4326) NOT NULL,
+                              eta TIMESTAMPTZ NOT NULL,
+                              calculated_at TIMESTAMPTZ NOT NULL
+);

@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-struct SqlAccountManager(PgPool);
+pub struct SqlAccountManager(PgPool);
 
 #[async_trait::async_trait]
 impl AccountManager for SqlAccountManager {
@@ -203,11 +203,15 @@ impl SqlAccountManager {
 
 		Ok((AccountId::new(account_id), password))
 	}
-	
+
 	/// Creates a new AmbulanceTracker using the specified connection as the backend.
-	/// It is expected that the [migrations/1_archive.sql] file has been executed already.
+	/// It is expected that the migrations file has been executed already.
 	pub fn new(pool: PgPool) -> Self {
 		Self(pool)
+	}
+
+	pub async fn create_site_admin(&self, username: &str) -> Result<(AccountId, String), Box<dyn Error>> {
+		self.unchecked_create_account(username, AccountRole::SiteAdmin, None).await
 	}
 }
 

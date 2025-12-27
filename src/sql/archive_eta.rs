@@ -10,7 +10,7 @@ use std::time::Duration;
 pub struct ArchiveEta(PgPool, Box<dyn EtaFinder + 'static + Sync + Send>);
 
 /// A wrapper over an ETA finder which uses the SQL backend to archive an ETA whenever a new one is
-/// calculated. Expects that [migrations/1_archive.sql] has been executed already.
+/// calculated. Expects that migrations has been executed already.
 #[async_trait::async_trait]
 impl EtaFinder for ArchiveEta {
 	async fn calculate_eta(&self, ambulance_id: Uuid, from: Point, to: Point) -> Result<Duration, Box<dyn Error>> {
