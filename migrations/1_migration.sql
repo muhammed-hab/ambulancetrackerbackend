@@ -36,7 +36,11 @@ CREATE TABLE accounts (
                           role account_role NOT NULL DEFAULT 'user',
                           owner_id UUID REFERENCES accounts(user_id) ON DELETE CASCADE,
                           password_reset_needed BOOLEAN NOT NULL DEFAULT TRUE,
-                          hospital GEOGRAPHY(POINT, 4326),
+    -- making the decision to use geometry rather than geography because geo-zero in rust does not support geography
+    -- because all the data should be relatively small, this should be fine for now and calculations will still be
+    -- pretty accurate. however, if distances were to become large, distance calculations and similar would be off as
+    -- geography is a true sphenoid where geometry assumes a plane
+                          hospital GEOMETRY(POINT, 4326),
                           pref_eta INTERVAL NOT NULL DEFAULT INTERVAL '15 minutes'
 );
 CREATE INDEX idx_accounts_username ON accounts(username);
@@ -67,7 +71,7 @@ CREATE INDEX idx_phone_numbers_user_id ON phone_numbers(user_id);
 CREATE TABLE ambulances (
                             ambulance_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                             ambulance_name VARCHAR(255),
-                            location GEOGRAPHY(POINT, 4326) NOT NULL,
+                            location GEOMETRY(POINT, 4326) NOT NULL,
                             last_update TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX idx_ambulances_last_update ON ambulances (last_update);
@@ -111,13 +115,13 @@ CREATE INDEX idx_eta_notifications_track_fulfilled_eta
 CREATE TABLE archive_ambulance_locations (
     ambulance_id UUID NOT NULL,
     ambulance_name VARCHAR(255),
-    location GEOGRAPHY(POINT, 4326) NOT NULL,
+    location GEOMETRY(POINT, 4326) NOT NULL,
     time TIMESTAMPTZ NOT NULL
 );
 CREATE TABLE archive_etas (
     ambulance_id UUID NOT NULL,
-    current_location GEOGRAPHY(POINT, 4326) NOT NULL,
-    destination GEOGRAPHY(POINT, 4326) NOT NULL,
+    current_location GEOMETRY(POINT, 4326) NOT NULL,
+    destination GEOMETRY(POINT, 4326) NOT NULL,
     eta TIMESTAMPTZ NOT NULL,
     calculated_at TIMESTAMPTZ NOT NULL
 );

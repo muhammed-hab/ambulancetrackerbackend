@@ -35,4 +35,7 @@ pub trait AmbulanceTracker {
 	async fn get_recently_updated(&self, last_updated: Duration)
 		-> Result<Vec<Ambulance>, Box<dyn std::error::Error>>;
 
+	/// Returns the ambulance
+	async fn get_ambulance(&self, id: Uuid) -> Result<Option<Ambulance>, Box<dyn std::error::Error>>;
+
 }
