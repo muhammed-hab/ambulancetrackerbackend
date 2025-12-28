@@ -9,21 +9,11 @@ pub struct PhoneNumber {
 	pub number: String,
 	pub label: String
 }
-impl PhoneNumber {
-	pub fn new(phone_id: Uuid, number: String, label: String) -> PhoneNumber {
-		Self { phone_id, number, label }
-	}
-}
 
 #[derive(Debug, Clone)]
 pub struct UserSettings {
-	pub hospital_location: geo_types::Point,
+	pub hospital_location: Option<geo_types::Point>,
 	pub default_eta_alert: Duration
-}
-impl UserSettings {
-	pub fn new(hospital_location: geo_types::Point, default_eta_alert: Duration) -> UserSettings {
-		Self {hospital_location, default_eta_alert}
-	}
 }
 
 #[derive(Debug, Error)]
@@ -56,8 +46,9 @@ pub trait SettingsManager {
 	/// Returns a list of a user's phones
 	async fn get_phones(&self, user_id: AccountId) -> Result<Vec<PhoneNumber>, SettingsError>;
 
-	/// Creates a new phone for a user. Duplicates are allowed.
-	async fn new_phone(&self, user_id: AccountId, phone: &str, label: &str) -> Result<(), SettingsError>;
+	/// Creates a new phone for a user. Duplicates are allowed. Phone should be 10 chars long
+	/// representing a standard 10 digit US phone number as digits only.
+	async fn new_phone(&self, user_id: AccountId, phone: &str, label: &str) -> Result<PhoneNumber, SettingsError>;
 
 	/// Deletes a phone
 	async fn delete_phone(&self, user_id: AccountId, phone_id: Uuid) -> Result<(), DeletePhoneError>;
