@@ -9,8 +9,8 @@ pub struct TrackedAmbulance {
 	pub ambulance: Ambulance,
 	pub user_label: String,
 	pub urgency: String,
-	pub phones_tracking: (PhoneNumber, Duration),
-	pub eta: DateTime<Utc>,
+	pub phones_tracking: Vec<(PhoneNumber, Duration)>,
+	pub eta: Option<DateTime<Utc>>,
 	pub user_eta_notify: Option<Duration>,
 }
 
@@ -23,21 +23,20 @@ pub enum UserLookupError {
 }
 #[derive(Debug, Error)]
 pub enum AmbulanceLookupError {
-	#[error("ambulance not found")]
-	AmbulanceNotFound,
-	#[error("user not found")]
-	UserNotFound,
-	#[error("other error")]
+	#[error("ambulance or user not found, or the user is not tracking the ambulance")]
+	AmbulanceNotTracked,
+	#[error("other error {0}")]
 	OtherError(Box<dyn std::error::Error>),
 }
 
+#[async_trait::async_trait]
 pub trait TrackingManager {
 
 	/// Returns a list of which ambulances a user is currently tracking
-	async fn get_user_tracking(&self, id: AccountId) -> Result<TrackedAmbulance, UserLookupError>;
+	async fn get_user_tracking(&self, id: AccountId) -> Result<Vec<TrackedAmbulance>, UserLookupError>;
 
 	/// Begins tracking an ambulance
-	async fn track_ambulance(&self, id: AccountId, ambulance_id: Uuid, user_label: &str, urgency: &str, phones: (Uuid, Duration)) -> Result<(), AmbulanceLookupError>;
+	async fn track_ambulance(&self, id: AccountId, ambulance_id: Uuid, user_label: &str, urgency: &str, phones: &[(Uuid, Duration)], notify_self_at: Option<Duration>) -> Result<(), AmbulanceLookupError>;
 	
 	/// Dismisses the user eta alert
 	async fn dismiss_eta_alert(&self, id: AccountId, ambulance_id: Uuid) -> Result<(), AmbulanceLookupError>;

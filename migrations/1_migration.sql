@@ -84,7 +84,7 @@ CREATE TABLE live_tracking_sessions (
                                         user_id UUID NOT NULL REFERENCES accounts(user_id) ON DELETE CASCADE,
                                         ambulance_id UUID NOT NULL REFERENCES ambulances(ambulance_id) ON DELETE CASCADE,
                                         user_description VARCHAR(1024),
-                                        urgency CHAR(16),
+                                        urgency VARCHAR(16),
                                         inserted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                                         arrived_at TIMESTAMPTZ,
                                         eta TIMESTAMPTZ,
