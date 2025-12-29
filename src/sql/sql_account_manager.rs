@@ -30,26 +30,28 @@ impl AccountManager for SqlAccountManager {
 		let salt = random_salt().map_err(|e| AccountOwnerManageError::Other(e.into()))?;
 		let hash = hash_password(password.as_bytes(), &salt).map_err(|e| AccountOwnerManageError::Other(e.into()))?;
 
-		match sqlx::query_as::<_, (i32,)>("UPDATE accounts SET password_salt=$3, password_hash=$4 WHERE user_id=$1 AND owner_id=$2 RETURNING 1;")
+		match sqlx::query("UPDATE accounts SET password_salt=$3, password_hash=$4 WHERE user_id=$1 AND owner_id=$2;")
 			.bind(account_id.0)
 			.bind(owner_id.0)
 			.bind(salt)
 			.bind(hash)
-			.fetch_optional(&self.0)
-			.await.map_err(|e| AccountOwnerManageError::Other(e.into()))? {
-			Some(_) => Ok(password),
-			None => Err(AccountOwnerManageError::UserNotFound)
+			.execute(&self.0)
+			.await.map_err(|e| AccountOwnerManageError::Other(e.into()))?
+			.rows_affected() {
+			0 => Err(AccountOwnerManageError::UserNotFound),
+			_ => Ok(password),
 		}
 	}
 
 	async fn delete_account(&self, owner_id: &AccountId, account_id: &AccountId) -> Result<(), AccountOwnerManageError> {
-		match sqlx::query_as::<_, (i32,)>("DELETE FROM accounts WHERE user_id=$1 AND owner_id=$2 RETURNING 1;")
+		match sqlx::query("DELETE FROM accounts WHERE user_id=$1 AND owner_id=$2;")
 			.bind(account_id.0)
 			.bind(owner_id.0)
-			.fetch_optional(&self.0)
-			.await.map_err(|e| AccountOwnerManageError::Other(e.into()))? {
-			Some(_) => Ok(()),
-			None => Err(AccountOwnerManageError::UserNotFound)
+			.execute(&self.0)
+			.await.map_err(|e| AccountOwnerManageError::Other(e.into()))?
+			.rows_affected() {
+			0 => Err(AccountOwnerManageError::UserNotFound),
+			_ => Ok(()),
 		}
 	}
 

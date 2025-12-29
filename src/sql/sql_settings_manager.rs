@@ -32,15 +32,16 @@ impl SettingsManager for SQLSettingsManager {
 
 	async fn set_settings(&self, user_id: AccountId, settings: UserSettings) -> Result<(), SettingsError> {
 		let interval = PgInterval::try_from(settings.default_eta_alert).map_err(|e| SettingsError::Other(e))?;
-		match sqlx::query_as::<_, (i32,)>("UPDATE accounts SET hospital=$2, pref_eta=$3 WHERE user_id=$1 RETURNING 1;")
+		match sqlx::query("UPDATE accounts SET hospital=$2, pref_eta=$3 WHERE user_id=$1;")
 			.bind(user_id.0)
 			.bind(settings.hospital_location.map(|pt| wkb::Encode::<Geometry>(pt.into())))
 			.bind(interval)
-			.fetch_optional(&self.0)
+			.execute(&self.0)
 			.await
-			.map_err(|e| SettingsError::Other(e.into()))? {
-			Some(_) => Ok(()),
-			None => Err(SettingsError::UserNotFound)
+			.map_err(|e| SettingsError::Other(e.into()))?
+			.rows_affected() {
+			0 => Err(SettingsError::UserNotFound),
+			_ => Ok(()),
 		}
 	}
 
@@ -85,14 +86,15 @@ impl SettingsManager for SQLSettingsManager {
 	}
 
 	async fn delete_phone(&self, user_id: AccountId, phone_id: Uuid) -> Result<(), DeletePhoneError> {
-		match sqlx::query_as::<_, (i32,)>("DELETE FROM phone_numbers WHERE user_id=$1 AND phone_id=$2 RETURNING 1;")
+		match sqlx::query("DELETE FROM phone_numbers WHERE user_id=$1 AND phone_id=$2;")
 			.bind(user_id.0)
 			.bind(phone_id)
-			.fetch_optional(&self.0)
+			.execute(&self.0)
 			.await
-			.map_err(|e| DeletePhoneError::Other(e.into()))? {
-			Some(_) => Ok(()),
-			None => Err(DeletePhoneError::PhoneNotFound)
+			.map_err(|e| DeletePhoneError::Other(e.into()))?
+			.rows_affected() {
+			0 => Err(DeletePhoneError::PhoneNotFound),
+			_ => Ok(())
 		}
 	}
 }
